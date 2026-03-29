@@ -83,8 +83,8 @@ jobs:
           BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
           NGINX_IMAGE: ${{ needs.build-and-push.outputs.nginx_image }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          GHCR_USERNAME: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USERNAME: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
