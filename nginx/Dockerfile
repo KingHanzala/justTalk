@@ -10,5 +10,10 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/nginx.bootstrap.conf /etc/nginx/templates/nginx.bootstrap.conf
+COPY nginx/nginx.tls.conf /etc/nginx/templates/nginx.tls.conf
+COPY nginx/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 COPY --from=frontend-build /app/dist /usr/share/nginx/html
+
+ENTRYPOINT ["/entrypoint.sh"]
