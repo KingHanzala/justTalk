@@ -203,7 +203,103 @@ docker compose -f docker-compose.prod.yml up -d
 - [docker-compose.prod.yml] uses prebuilt images, not local source builds.
 - The current production compose expects an external PostgreSQL database.
 - nginx serves the frontend and proxies `/api` and `/api/ws`.
-- The current repo serves HTTP on port `80`. TLS/HTTPS should be added separately or terminated before nginx.
+- HTTPS is designed to terminate directly in nginx on the VM.
+- nginx runs in two modes:
+  - bootstrap HTTP mode before certificates exist
+  - full TLS mode after Let’s Encrypt certs are present
+
+### Custom Domain and HTTPS
+
+Recommended production env values:
+
+```env
+APP_DOMAIN=justtalk.hanza.la
+APP_WWW_DOMAIN=www.justtalk.hanza.la
+APP_CANONICAL_HOST=justtalk.hanza.la
+```
+
+Target hosts are driven from env now, not hardcoded into the nginx image.
+
+DNS records:
+
+- `A` or `AAAA` for `justtalk.hanza.la` pointing to your VM
+- `A` or `AAAA` for `www.justtalk.hanza.la` pointing to your VM
+
+VM/firewall ports:
+
+- `80/tcp`
+- `443/tcp`
+
+Server directories required:
+
+```bash
+/home/hanzala_sabir/chat-app
+/home/hanzala_sabir/chat-app/backend/.env
+/var/www/certbot
+/etc/letsencrypt
+```
+
+Update `backend/.env` on the VM:
+
+```env
+ALLOWED_ORIGINS=https://justtalk.hanza.la,https://www.justtalk.hanza.la
+APP_BASE_URL=https://justtalk.hanza.la
+APP_DOMAIN=justtalk.hanza.la
+APP_WWW_DOMAIN=www.justtalk.hanza.la
+APP_CANONICAL_HOST=justtalk.hanza.la
+EMAIL_FROM=JustTalk <noreply@justtalk.hanza.la>
+EMAIL_REPLY_TO=JustTalk <noreply@justtalk.hanza.la>
+```
+
+### First-Time HTTPS Bootstrap
+
+1. Deploy the updated production stack.
+2. Ensure DNS for both hosts points to the VM.
+3. Create the ACME webroot on the VM:
+
+```bash
+sudo mkdir -p /var/www/certbot
+sudo chown -R $USER:$USER /var/www/certbot
+```
+
+4. Start the stack once so nginx comes up in bootstrap HTTP mode:
+
+```bash
+cd /home/hanzala_sabir/chat-app
+docker compose -f docker-compose.prod.yml up -d
+```
+
+5. Install Certbot on the VM if needed and request certificates using the webroot flow:
+
+```bash
+sudo certbot certonly --webroot -w /var/www/certbot \
+  -d "$APP_DOMAIN" \
+  -d "$APP_WWW_DOMAIN"
+```
+
+6. Restart nginx so it switches to TLS mode:
+
+```bash
+cd /home/hanzala_sabir/chat-app
+docker compose -f docker-compose.prod.yml restart nginx
+```
+
+### Renewal
+
+Verify renewal works:
+
+```bash
+sudo certbot renew --dry-run
+```
+
+After renewal, reload nginx:
+
+```bash
+cd /home/hanzala_sabir/chat-app
+docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+```
+
+Most Linux installs of Certbot already create a timer/cron job for renewals. Keep that enabled on the VM.
 
 ---
 
