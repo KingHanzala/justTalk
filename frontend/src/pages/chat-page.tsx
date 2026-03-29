@@ -4,10 +4,14 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { ChatWindow } from "@/components/chat/chat-window";
 import { Spinner } from "@/components/ui/spinner";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useChatStore } from "@/store/use-chat-store";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function ChatPage() {
   const [, setLocation] = useLocation();
   const { data: user, isLoading, isError } = useCurrentUser();
+  const { selectedChatId } = useChatStore();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (isError || (!isLoading && !user)) {
@@ -26,9 +30,9 @@ export default function ChatPage() {
   if (!user) return null;
 
   return (
-    <div className="flex h-screen w-full bg-zinc-950 overflow-hidden text-white">
-      <Sidebar />
-      <ChatWindow />
+    <div className="flex h-[100dvh] w-full bg-zinc-950 overflow-hidden text-white">
+      {(!isMobile || !selectedChatId) && <Sidebar />}
+      {(!isMobile || selectedChatId) && <ChatWindow />}
     </div>
   );
 }

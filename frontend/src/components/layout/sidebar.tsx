@@ -8,11 +8,13 @@ import { NewChatDialog } from "@/components/modals/new-chat-dialog";
 import { cn, getAvatarUrl } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function Sidebar() {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const { selectedChatId, setSelectedChatId } = useChatStore();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const { data: currentUser } = useCurrentUser();
   const { data: chats, isLoading } = useChats();
@@ -23,7 +25,10 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-80 flex-shrink-0 bg-zinc-950/80 backdrop-blur-xl border-r border-white/5 flex flex-col h-full">
+    <div className={cn(
+      "bg-zinc-950/80 backdrop-blur-xl border-r border-white/5 flex flex-col h-full min-h-0",
+      isMobile ? "w-full" : "w-80 flex-shrink-0",
+    )}>
       {/* Header */}
       <div className="p-4 border-b border-white/5 flex items-center justify-between bg-zinc-950/50">
         <div className="flex items-center gap-3">
@@ -68,7 +73,7 @@ export function Sidebar() {
       </div>
 
       {/* Chat List */}
-      <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4 space-y-1 overscroll-contain">
         {isLoading ? (
           <div className="flex justify-center p-8">
             <Spinner />
@@ -97,10 +102,10 @@ export function Sidebar() {
                 )}
                 
                 <div className="relative">
-                  <img 
+                  <img
                     src={getAvatarUrl(displayName!)} 
                     alt={displayName!} 
-                    className="w-12 h-12 rounded-full bg-zinc-800" 
+                    className="w-12 h-12 rounded-full bg-zinc-800"
                   />
                   {chat.isGroup && (
                     <div className="absolute -bottom-1 -right-1 bg-zinc-900 border border-zinc-700 rounded-full p-0.5">
