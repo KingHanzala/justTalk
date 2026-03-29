@@ -77,6 +77,8 @@ class ChatDetailOut(BaseModel):
     name: str | None
     isGroup: bool
     members: list[ChatMemberOut]
+    membershipStatus: str
+    canWrite: bool
     createdAt: datetime
 
 

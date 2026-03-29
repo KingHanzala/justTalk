@@ -43,6 +43,8 @@ export function useWebSocket(chatId: string | null) {
       };
 
       websocket.onclose = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
         if (closedByCleanup) {
           return;
         }

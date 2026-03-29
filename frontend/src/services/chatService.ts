@@ -39,6 +39,13 @@ export function removeMember(chatId: string, userId: string) {
   });
 }
 
+export function addMember(chatId: string, userId: string) {
+  return apiRequest<SuccessResponse>(`/api/chats/${chatId}/members`, {
+    method: "POST",
+    body: { userId },
+  });
+}
+
 export function searchUsers(query: string) {
   return apiRequest<User[]>(`/api/users/search?q=${encodeURIComponent(query)}`);
 }

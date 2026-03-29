@@ -6,6 +6,7 @@ from app.models import User
 from app.models.schemas import AddMemberRequest, ChatDetailOut, ChatSummaryOut, CreateChatRequest, SuccessResponse
 from app.services.chat_service import add_member_to_chat, create_chat_for_user, get_chat_for_user, list_chats_for_user, remove_member_from_chat
 from app.utils.auth import get_current_user
+from app.websockets.manager import manager
 
 router = APIRouter(prefix="/chats", tags=["chats"])
 
@@ -37,20 +38,23 @@ def get_chat(
 
 
 @router.post("/{chat_id}/members", response_model=SuccessResponse)
-def add_member(
+async def add_member(
     chat_id: str,
     body: AddMemberRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return add_member_to_chat(chat_id, body.userId, db, current_user)
+    result = add_member_to_chat(chat_id, body.userId, db, current_user)
+    return result
 
 
 @router.delete("/{chat_id}/members/{user_id}", response_model=SuccessResponse)
-def remove_member(
+async def remove_member(
     chat_id: str,
     user_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return remove_member_from_chat(chat_id, user_id, db, current_user)
+    result = remove_member_from_chat(chat_id, user_id, db, current_user)
+    await manager.disconnect_user(chat_id, user_id, code=4004)
+    return result

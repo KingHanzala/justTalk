@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createChat, deleteMessage, getChat, listChats, listMessages, removeMember, searchUsers, sendMessage } from "@/services/chatService";
+import { addMember, createChat, deleteMessage, getChat, listChats, listMessages, removeMember, searchUsers, sendMessage } from "@/services/chatService";
 import type { CreateChatRequest, Message, SendMessageRequest } from "@/types";
 import { queryKeys } from "@/utils/constants";
 
@@ -85,6 +85,19 @@ export function useRemoveMember() {
 
   return useMutation({
     mutationFn: ({ chatId, userId }: { chatId: string; userId: string }) => removeMember(chatId, userId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat(variables.chatId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.messages(variables.chatId) });
+    },
+  });
+}
+
+export function useAddMember() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ chatId, userId }: { chatId: string; userId: string }) => addMember(chatId, userId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.chat(variables.chatId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chats });

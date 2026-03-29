@@ -10,6 +10,8 @@ from .user import now_utc
 
 ROLE_ADMIN = "admin"
 ROLE_MEMBER = "member"
+STATUS_ACTIVE = "active"
+STATUS_REMOVED = "removed"
 
 
 class Chat(Base):
@@ -31,6 +33,8 @@ class ChatMember(Base):
     chat_id: Mapped[str] = mapped_column(String, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role: Mapped[str] = mapped_column(String, default=ROLE_MEMBER)
+    status: Mapped[str] = mapped_column(String, default=STATUS_ACTIVE)
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
 
     chat: Mapped["Chat"] = relationship("Chat", back_populates="members")

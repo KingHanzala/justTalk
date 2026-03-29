@@ -43,6 +43,8 @@ export interface ChatDetail {
   name: string | null;
   isGroup: boolean;
   members: ChatMember[];
+  membershipStatus: "active" | "removed";
+  canWrite: boolean;
   createdAt: string;
 }
 
