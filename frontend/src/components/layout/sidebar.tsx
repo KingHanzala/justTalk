@@ -40,7 +40,7 @@ export function Sidebar() {
             />
           </div>
           <div>
-            <h2 className="font-display font-bold text-white leading-tight">Messages</h2>
+            <h2 className="font-display font-bold text-white leading-tight">JustTalk</h2>
             <p className="text-xs text-zinc-400">@{currentUser?.username}</p>
           </div>
         </div>
@@ -81,6 +81,7 @@ export function Sidebar() {
         ) : chats && chats.length > 0 ? (
           chats.map((chat) => {
             const isSelected = selectedChatId === chat.id;
+            const isUnread = chat.hasUnread;
             
             // Derive display name for direct chats (API should ideally handle this, 
             // but assuming name is null for DMs and we just display standard text if we don't have other user info)
@@ -94,7 +95,9 @@ export function Sidebar() {
                   "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all relative overflow-hidden group",
                   isSelected 
                     ? "bg-primary/10 border-white/5" 
-                    : "hover:bg-white/5 border-transparent"
+                    : isUnread
+                      ? "bg-emerald-500/8 hover:bg-emerald-500/12 border border-emerald-400/10"
+                      : "hover:bg-white/5 border-transparent"
                 )}
               >
                 {isSelected && (
@@ -118,19 +121,26 @@ export function Sidebar() {
                   <div className="flex justify-between items-baseline mb-0.5">
                     <h3 className={cn(
                       "text-sm font-semibold truncate",
-                      isSelected ? "text-white" : "text-zinc-200 group-hover:text-white"
+                      isSelected ? "text-white" : isUnread ? "text-white" : "text-zinc-200 group-hover:text-white"
                     )}>
                       {displayName}
                     </h3>
-                    {chat.lastMessage && (
-                      <span className="text-[10px] text-zinc-500 flex-shrink-0 ml-2">
-                        {format(new Date(chat.lastMessage.createdAt), "HH:mm")}
-                      </span>
-                    )}
+                    <div className="ml-2 flex flex-col items-end gap-1">
+                      {chat.lastMessage && (
+                        <span className={cn("text-[10px] flex-shrink-0", isUnread ? "text-emerald-300" : "text-zinc-500")}>
+                          {format(new Date(chat.lastMessage.createdAt), "HH:mm")}
+                        </span>
+                      )}
+                      {chat.unreadCount > 0 && (
+                        <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-400 px-1.5 py-0.5 text-[10px] font-bold text-zinc-950">
+                          {chat.unreadCount}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className={cn(
                     "text-xs truncate",
-                    isSelected ? "text-primary/80" : "text-zinc-500"
+                    isSelected ? "text-primary/80" : isUnread ? "text-zinc-200" : "text-zinc-500"
                   )}>
                     {chat.lastMessage ? (
                       <span>
@@ -148,8 +158,8 @@ export function Sidebar() {
         ) : (
           <div className="flex flex-col items-center justify-center h-40 text-center px-4">
             <MessageSquare className="w-8 h-8 text-zinc-700 mb-3" />
-            <p className="text-sm text-zinc-400">No chats yet.</p>
-            <p className="text-xs text-zinc-600 mt-1">Click the + button to start one.</p>
+            <p className="text-sm text-zinc-400">No conversations yet.</p>
+            <p className="text-xs text-zinc-600 mt-1">Click the + button to start talking on JustTalk.</p>
           </div>
         )}
       </div>

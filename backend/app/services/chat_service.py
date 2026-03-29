@@ -12,6 +12,38 @@ def active_members(chat: Chat) -> list[ChatMember]:
     return [member for member in chat.members if member.status == STATUS_ACTIVE]
 
 
+def can_membership_see_message(membership: ChatMember, message_created_at: datetime) -> bool:
+    if membership.history_visible_until is None and membership.joined_at is not None and membership.status == STATUS_ACTIVE and membership.removed_at is None:
+        return True
+    if membership.history_visible_until is not None and message_created_at <= membership.history_visible_until:
+        return True
+    if message_created_at >= membership.joined_at:
+        if membership.status == STATUS_ACTIVE:
+            return True
+        if membership.removed_at is not None and message_created_at <= membership.removed_at:
+            return True
+    return False
+
+
+def visible_messages_for_membership(chat: Chat, membership: ChatMember):
+    return [message for message in chat.messages if can_membership_see_message(membership, message.created_at)]
+
+
+def unread_count_for_membership(chat: Chat, membership: ChatMember) -> int:
+    visible_messages = visible_messages_for_membership(chat, membership)
+    if not visible_messages:
+        return 0
+    if membership.last_read_at is None:
+        return len([message for message in visible_messages if message.user_id != membership.user_id])
+    return len(
+        [
+            message
+            for message in visible_messages
+            if message.created_at > membership.last_read_at and message.user_id != membership.user_id
+        ]
+    )
+
+
 def get_membership(chat_id: str, user_id: str, db: Session) -> ChatMember | None:
     return db.query(ChatMember).filter(
         ChatMember.chat_id == chat_id,
@@ -48,10 +80,8 @@ def require_chat_access(chat_id: str, db: Session, current_user: User) -> tuple[
 
 
 def chat_summary(chat: Chat, membership: ChatMember) -> ChatSummaryOut:
-    visible_messages = [
-        message for message in chat.messages
-        if membership.status == STATUS_ACTIVE or membership.removed_at is None or message.created_at <= membership.removed_at
-    ]
+    visible_messages = visible_messages_for_membership(chat, membership)
+    unread_count = unread_count_for_membership(chat, membership)
     last_msg = visible_messages[-1] if visible_messages else None
     last_message_out = None
     if last_msg:
@@ -73,15 +103,14 @@ def chat_summary(chat: Chat, membership: ChatMember) -> ChatSummaryOut:
         isGroup=chat.is_group,
         lastMessage=last_message_out,
         memberCount=len(active_members(chat)),
+        unreadCount=unread_count,
+        hasUnread=unread_count > 0,
         createdAt=chat.created_at,
     )
 
 
 def visible_last_activity(chat: Chat, membership: ChatMember) -> datetime:
-    visible_messages = [
-        message for message in chat.messages
-        if membership.status == STATUS_ACTIVE or membership.removed_at is None or message.created_at <= membership.removed_at
-    ]
+    visible_messages = visible_messages_for_membership(chat, membership)
     return visible_messages[-1].created_at if visible_messages else chat.created_at
 
 
@@ -175,6 +204,7 @@ def get_chat_for_user(chat_id: str, db: Session, current_user: User) -> ChatDeta
         members=members,
         membershipStatus=membership.status,
         canWrite=membership.status == STATUS_ACTIVE,
+        unreadCount=unread_count_for_membership(chat, membership),
         createdAt=chat.created_at,
     )
 
@@ -191,10 +221,22 @@ def add_member_to_chat(chat_id: str, user_id: str, db: Session, current_user: Us
         if existing.status == STATUS_REMOVED:
             existing.status = STATUS_ACTIVE
             existing.removed_at = None
+            existing.joined_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            existing.last_read_at = existing.joined_at
             db.commit()
         return SuccessResponse(success=True)
 
-    db.add(ChatMember(chat_id=chat_id, user_id=user_id, role=ROLE_MEMBER, status=STATUS_ACTIVE))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.add(
+        ChatMember(
+            chat_id=chat_id,
+            user_id=user_id,
+            role=ROLE_MEMBER,
+            status=STATUS_ACTIVE,
+            joined_at=now,
+            last_read_at=now,
+        )
+    )
     db.commit()
     return SuccessResponse(success=True)
 
@@ -217,7 +259,18 @@ def remove_member_from_chat(chat_id: str, user_id: str, db: Session, current_use
         if admin_count <= 1:
             raise HTTPException(status_code=409, detail="A group must always have at least one admin")
 
+    removed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     membership.status = STATUS_REMOVED
-    membership.removed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    membership.removed_at = removed_at
+    membership.history_visible_until = removed_at
     db.commit()
+    return SuccessResponse(success=True)
+
+
+def mark_chat_as_read(chat_id: str, db: Session, current_user: User) -> SuccessResponse:
+    chat, membership = require_chat_access(chat_id, db, current_user)
+    visible_messages = visible_messages_for_membership(chat, membership)
+    if visible_messages:
+        membership.last_read_at = visible_messages[-1].created_at
+        db.commit()
     return SuccessResponse(success=True)

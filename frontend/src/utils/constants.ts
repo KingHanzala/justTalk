@@ -1,5 +1,6 @@
 export const STORAGE_KEYS = {
   authToken: "chat_token",
+  pendingVerification: "pending_verification",
 };
 
 export const queryKeys = {

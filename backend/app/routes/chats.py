@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
 from app.models.schemas import AddMemberRequest, ChatDetailOut, ChatSummaryOut, CreateChatRequest, SuccessResponse
-from app.services.chat_service import add_member_to_chat, create_chat_for_user, get_chat_for_user, list_chats_for_user, remove_member_from_chat
+from app.services.chat_service import add_member_to_chat, create_chat_for_user, get_chat_for_user, list_chats_for_user, mark_chat_as_read, remove_member_from_chat
 from app.utils.auth import get_current_user
 from app.websockets.manager import manager
 
@@ -58,3 +58,12 @@ async def remove_member(
     result = remove_member_from_chat(chat_id, user_id, db, current_user)
     await manager.disconnect_user(chat_id, user_id, code=4004)
     return result
+
+
+@router.post("/{chat_id}/read", response_model=SuccessResponse)
+def mark_read(
+    chat_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return mark_chat_as_read(chat_id, db, current_user)

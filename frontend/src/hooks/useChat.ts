@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { addMember, createChat, deleteMessage, getChat, listChats, listMessages, removeMember, searchUsers, sendMessage } from "@/services/chatService";
+import { addMember, createChat, deleteMessage, getChat, listChats, listMessages, markChatRead, removeMember, searchUsers, sendMessage } from "@/services/chatService";
 import type { CreateChatRequest, Message, SendMessageRequest } from "@/types";
 import { queryKeys } from "@/utils/constants";
 
@@ -102,6 +102,39 @@ export function useAddMember() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chat(variables.chatId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chats });
       queryClient.invalidateQueries({ queryKey: queryKeys.messages(variables.chatId) });
+    },
+  });
+}
+
+export function useMarkChatRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (chatId: string) => markChatRead(chatId),
+    onSuccess: (_, chatId) => {
+      queryClient.setQueryData(queryKeys.chat(chatId), (current: any) => {
+        if (!current) {
+          return current;
+        }
+        return {
+          ...current,
+          unreadCount: 0,
+        };
+      });
+      queryClient.setQueryData(queryKeys.chats, (current: any[] | undefined) => {
+        if (!current) {
+          return current;
+        }
+        return current.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                unreadCount: 0,
+                hasUnread: false,
+              }
+            : chat,
+        );
+      });
     },
   });
 }

@@ -46,6 +46,12 @@ export function addMember(chatId: string, userId: string) {
   });
 }
 
+export function markChatRead(chatId: string) {
+  return apiRequest<SuccessResponse>(`/api/chats/${chatId}/read`, {
+    method: "POST",
+  });
+}
+
 export function searchUsers(query: string) {
   return apiRequest<User[]>(`/api/users/search?q=${encodeURIComponent(query)}`);
 }

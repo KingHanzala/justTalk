@@ -2,6 +2,7 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect } from "react";
 
 import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/LoginPage";
@@ -27,6 +28,10 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    document.title = "JustTalk";
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

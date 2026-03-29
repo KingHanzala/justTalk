@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -17,7 +18,7 @@ def search_users(
 ):
     users = (
         db.query(User)
-        .filter(User.username.ilike(f"%{q}%"), User.id != current_user.id)
+        .filter(func.lower(User.username).contains(q.lower()), User.id != current_user.id)
         .limit(20)
         .all()
     )

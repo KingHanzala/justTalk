@@ -7,13 +7,20 @@ class UserOut(BaseModel):
     id: str
     username: str
     email: str
+    isVerified: bool
     createdAt: datetime
 
     model_config = {"from_attributes": True}
 
     @classmethod
     def from_orm_user(cls, user):
-        return cls(id=user.id, username=user.username, email=user.email, createdAt=user.created_at)
+        return cls(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            isVerified=user.is_verified,
+            createdAt=user.created_at,
+        )
 
 
 class RegisterRequest(BaseModel):
@@ -27,9 +34,19 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AuthResponse(BaseModel):
-    token: str
+class AuthFlowResponse(BaseModel):
+    token: str | None
     user: UserOut
+    verificationRequired: bool
+
+
+class VerifyCodeRequest(BaseModel):
+    username: str
+    code: str
+
+
+class ResendVerificationRequest(BaseModel):
+    username: str
 
 
 class MessageOut(BaseModel):
@@ -69,6 +86,8 @@ class ChatSummaryOut(BaseModel):
     isGroup: bool
     lastMessage: MessageOut | None
     memberCount: int
+    unreadCount: int
+    hasUnread: bool
     createdAt: datetime
 
 
@@ -79,6 +98,7 @@ class ChatDetailOut(BaseModel):
     members: list[ChatMemberOut]
     membershipStatus: str
     canWrite: bool
+    unreadCount: int
     createdAt: datetime
 
 

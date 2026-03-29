@@ -6,7 +6,7 @@ from app.routes import auth, chats, messages, users, websocket
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Chat App API", version="0.1.0")
+    app = FastAPI(title="JustTalk API", version="0.2.0")
 
     app.add_middleware(
         CORSMiddleware,
