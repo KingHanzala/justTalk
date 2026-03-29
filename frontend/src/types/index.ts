@@ -16,13 +16,16 @@ export interface Message {
   userId: string;
   username: string;
   content: string;
+  isDeleted: boolean;
   createdAt: string;
 }
+
+export type ChatMemberRole = "admin" | "member";
 
 export interface ChatMember {
   userId: string;
   username: string;
-  isAdmin: boolean;
+  role: ChatMemberRole;
   joinedAt: string;
 }
 
@@ -67,6 +70,6 @@ export interface SuccessResponse {
 }
 
 export interface WebSocketPayload {
-  type: "message";
+  type: "message" | "message_updated";
   data: Message;
 }

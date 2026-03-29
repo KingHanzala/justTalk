@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import ChatMember, Message, User
+from app.models import Chat, ChatMember, Message, User
+from app.models.chat import ROLE_ADMIN
 from app.models.schemas import MessageOut
 
 
@@ -42,3 +45,36 @@ def create_message(chat_id: str, content: str, db: Session, current_user: User) 
     db.refresh(message)
 
     return message, MessageOut.from_orm(message, current_user.username)
+
+
+def delete_message_for_everyone(chat_id: str, message_id: str, db: Session, current_user: User) -> MessageOut:
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if not chat.is_group:
+        raise HTTPException(status_code=400, detail="This operation is only available for group chats")
+
+    membership = db.query(ChatMember).filter(
+        ChatMember.chat_id == chat_id,
+        ChatMember.user_id == current_user.id,
+        ChatMember.role == ROLE_ADMIN,
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    message = (
+        db.query(Message)
+        .filter(Message.chat_id == chat_id, Message.id == message_id)
+        .options(joinedload(Message.user))
+        .first()
+    )
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if message.deleted_at is None:
+        message.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        message.deleted_by_user_id = current_user.id
+        db.commit()
+        db.refresh(message)
+
+    return MessageOut.from_orm(message, message.user.username)

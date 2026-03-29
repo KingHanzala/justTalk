@@ -2,7 +2,25 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Chat, ChatMember, User
+from app.models.chat import ROLE_ADMIN, ROLE_MEMBER
 from app.models.schemas import ChatDetailOut, ChatMemberOut, ChatSummaryOut, CreateChatRequest, MessageOut, SuccessResponse
+
+
+def require_group_admin(chat_id: str, db: Session, current_user: User) -> Chat:
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if not chat.is_group:
+        raise HTTPException(status_code=400, detail="This operation is only available for group chats")
+
+    membership = db.query(ChatMember).filter(
+        ChatMember.chat_id == chat_id,
+        ChatMember.user_id == current_user.id,
+        ChatMember.role == ROLE_ADMIN,
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return chat
 
 
 def chat_summary(chat: Chat, current_user_id: str) -> ChatSummaryOut:
@@ -82,7 +100,7 @@ def create_chat_for_user(body: CreateChatRequest, db: Session, current_user: Use
             ChatMember(
                 chat_id=chat.id,
                 user_id=user_id,
-                is_admin=(user_id == current_user.id),
+                role=ROLE_ADMIN if user_id == current_user.id and body.isGroup else ROLE_MEMBER,
             )
         )
 
@@ -116,7 +134,7 @@ def get_chat_for_user(chat_id: str, db: Session, current_user: User) -> ChatDeta
         ChatMemberOut(
             userId=member.user_id,
             username=member.user.username,
-            isAdmin=member.is_admin,
+            role=member.role,
             joinedAt=member.joined_at,
         )
         for member in chat.members
@@ -131,17 +149,7 @@ def get_chat_for_user(chat_id: str, db: Session, current_user: User) -> ChatDeta
 
 
 def add_member_to_chat(chat_id: str, user_id: str, db: Session, current_user: User) -> SuccessResponse:
-    chat = db.query(Chat).filter(Chat.id == chat_id).first()
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-
-    membership = db.query(ChatMember).filter(
-        ChatMember.chat_id == chat_id,
-        ChatMember.user_id == current_user.id,
-        ChatMember.is_admin == True,
-    ).first()
-    if not membership:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    require_group_admin(chat_id, db, current_user)
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -154,6 +162,29 @@ def add_member_to_chat(chat_id: str, user_id: str, db: Session, current_user: Us
     if existing:
         return SuccessResponse(success=True)
 
-    db.add(ChatMember(chat_id=chat_id, user_id=user_id, is_admin=False))
+    db.add(ChatMember(chat_id=chat_id, user_id=user_id, role=ROLE_MEMBER))
+    db.commit()
+    return SuccessResponse(success=True)
+
+
+def remove_member_from_chat(chat_id: str, user_id: str, db: Session, current_user: User) -> SuccessResponse:
+    require_group_admin(chat_id, db, current_user)
+
+    membership = db.query(ChatMember).filter(
+        ChatMember.chat_id == chat_id,
+        ChatMember.user_id == user_id,
+    ).first()
+    if not membership:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    if membership.role == ROLE_ADMIN:
+        admin_count = db.query(ChatMember).filter(
+            ChatMember.chat_id == chat_id,
+            ChatMember.role == ROLE_ADMIN,
+        ).count()
+        if admin_count <= 1:
+            raise HTTPException(status_code=409, detail="A group must always have at least one admin")
+
+    db.delete(membership)
     db.commit()
     return SuccessResponse(success=True)

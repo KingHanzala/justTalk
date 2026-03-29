@@ -28,6 +28,16 @@ def test_create_direct_and_group_chat(client):
     assert group.status_code == 201
     assert group.json()["name"] == "Project"
 
+    group_detail = client.get(
+        f"/api/chats/{group.json()['id']}",
+        headers={"Authorization": f"Bearer {alice_token}"},
+    )
+    assert group_detail.status_code == 200
+    alice_member = next(member for member in group_detail.json()["members"] if member["userId"] == alice["id"])
+    bob_member = next(member for member in group_detail.json()["members"] if member["userId"] == bob["id"])
+    assert alice_member["role"] == "admin"
+    assert bob_member["role"] == "member"
+
 
 def test_add_member_requires_admin(client):
     alice, alice_token = create_user(client, "alice")
@@ -46,3 +56,33 @@ def test_add_member_requires_admin(client):
         json={"userId": alice["id"]},
     )
     assert forbidden.status_code == 403
+
+
+def test_admin_can_remove_member_but_not_last_admin(client):
+    alice, alice_token = create_user(client, "alice")
+    bob, bob_token = create_user(client, "bob")
+    charlie, _ = create_user(client, "charlie")
+
+    group = client.post(
+        "/api/chats",
+        headers={"Authorization": f"Bearer {alice_token}"},
+        json={"isGroup": True, "name": "Project", "memberUserIds": [bob["id"], charlie["id"]]},
+    ).json()
+
+    forbidden = client.delete(
+        f"/api/chats/{group['id']}/members/{charlie['id']}",
+        headers={"Authorization": f"Bearer {bob_token}"},
+    )
+    assert forbidden.status_code == 403
+
+    removed = client.delete(
+        f"/api/chats/{group['id']}/members/{charlie['id']}",
+        headers={"Authorization": f"Bearer {alice_token}"},
+    )
+    assert removed.status_code == 200
+
+    last_admin = client.delete(
+        f"/api/chats/{group['id']}/members/{alice['id']}",
+        headers={"Authorization": f"Bearer {alice_token}"},
+    )
+    assert last_admin.status_code == 409

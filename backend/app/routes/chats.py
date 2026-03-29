@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
 from app.models.schemas import AddMemberRequest, ChatDetailOut, ChatSummaryOut, CreateChatRequest, SuccessResponse
-from app.services.chat_service import add_member_to_chat, create_chat_for_user, get_chat_for_user, list_chats_for_user
+from app.services.chat_service import add_member_to_chat, create_chat_for_user, get_chat_for_user, list_chats_for_user, remove_member_from_chat
 from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -44,3 +44,13 @@ def add_member(
     current_user: User = Depends(get_current_user),
 ):
     return add_member_to_chat(chat_id, body.userId, db, current_user)
+
+
+@router.delete("/{chat_id}/members/{user_id}", response_model=SuccessResponse)
+def remove_member(
+    chat_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return remove_member_from_chat(chat_id, user_id, db, current_user)
