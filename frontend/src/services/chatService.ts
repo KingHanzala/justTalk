@@ -1,5 +1,5 @@
 import { apiRequest } from "@/services/api";
-import type { ChatDetail, ChatSummary, CreateChatRequest, Message, SendMessageRequest, User } from "@/types";
+import type { ChatDetail, ChatSummary, CreateChatRequest, Message, SendMessageRequest, SuccessResponse, User } from "@/types";
 
 export function listChats() {
   return apiRequest<ChatSummary[]>("/api/chats");
@@ -24,6 +24,25 @@ export function sendMessage(chatId: string, data: SendMessageRequest) {
   return apiRequest<Message>(`/api/chats/${chatId}/messages`, {
     method: "POST",
     body: data,
+  });
+}
+
+export function deleteMessage(chatId: string, messageId: string) {
+  return apiRequest<Message>(`/api/chats/${chatId}/messages/${messageId}`, {
+    method: "DELETE",
+  });
+}
+
+export function removeMember(chatId: string, userId: string) {
+  return apiRequest<SuccessResponse>(`/api/chats/${chatId}/members/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export function addMember(chatId: string, userId: string) {
+  return apiRequest<SuccessResponse>(`/api/chats/${chatId}/members`, {
+    method: "POST",
+    body: { userId },
   });
 }
 

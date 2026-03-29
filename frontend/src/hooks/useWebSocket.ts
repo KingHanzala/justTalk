@@ -26,12 +26,15 @@ export function useWebSocket(chatId: string | null) {
 
       websocket.onmessage = (event) => {
         const payload = JSON.parse(event.data) as WebSocketPayload;
-        if (payload.type !== "message") {
-          return;
-        }
         queryClient.setQueryData(queryKeys.messages(chatId), (current: Message[] | undefined) => {
           const messages = current ?? [];
-          if (messages.some((message) => message.id === payload.data.id)) {
+          const existingIndex = messages.findIndex((message) => message.id === payload.data.id);
+          if (existingIndex >= 0) {
+            const next = [...messages];
+            next[existingIndex] = payload.data;
+            return next;
+          }
+          if (payload.type !== "message") {
             return messages;
           }
           return [...messages, payload.data];
@@ -40,6 +43,8 @@ export function useWebSocket(chatId: string | null) {
       };
 
       websocket.onclose = () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
         if (closedByCleanup) {
           return;
         }

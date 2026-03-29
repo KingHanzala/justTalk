@@ -21,4 +21,4 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
 
     memberships: Mapped[list["ChatMember"]] = relationship("ChatMember", back_populates="user")
-    messages: Mapped[list["Message"]] = relationship("Message", back_populates="user")
+    messages: Mapped[list["Message"]] = relationship("Message", back_populates="user", foreign_keys="Message.user_id")

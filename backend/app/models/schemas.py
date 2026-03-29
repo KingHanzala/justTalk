@@ -38,6 +38,7 @@ class MessageOut(BaseModel):
     userId: str
     username: str
     content: str
+    isDeleted: bool
     createdAt: datetime
 
     model_config = {"from_attributes": True}
@@ -49,7 +50,8 @@ class MessageOut(BaseModel):
             chatId=msg.chat_id,
             userId=msg.user_id,
             username=username,
-            content=msg.content,
+            content="This message was deleted" if msg.deleted_at else msg.content,
+            isDeleted=msg.deleted_at is not None,
             createdAt=msg.created_at,
         )
 
@@ -57,7 +59,7 @@ class MessageOut(BaseModel):
 class ChatMemberOut(BaseModel):
     userId: str
     username: str
-    isAdmin: bool
+    role: str
     joinedAt: datetime
 
 
@@ -75,6 +77,8 @@ class ChatDetailOut(BaseModel):
     name: str | None
     isGroup: bool
     members: list[ChatMemberOut]
+    membershipStatus: str
+    canWrite: bool
     createdAt: datetime
 
 

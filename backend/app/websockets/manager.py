@@ -18,6 +18,18 @@ class ConnectionManager:
             if ws is not websocket
         ]
 
+    async def disconnect_user(self, chat_id: str, user_id: str, code: int = 4003):
+        keep = []
+        for uid, ws in list(self.active[chat_id]):
+            if uid == user_id:
+                try:
+                    await ws.close(code=code)
+                except Exception:
+                    pass
+            else:
+                keep.append((uid, ws))
+        self.active[chat_id] = keep
+
     async def broadcast(self, chat_id: str, message: dict):
         payload = json.dumps(message, default=str)
         dead = []
