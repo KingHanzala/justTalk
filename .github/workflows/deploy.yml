@@ -1,0 +1,120 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend_image: ${{ steps.image-vars.outputs.backend_image }}
+      nginx_image: ${{ steps.image-vars.outputs.nginx_image }}
+      image_tag: ${{ steps.image-vars.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image names
+        id: image-vars
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          repo="${repo,,}"
+          short_sha="${GITHUB_SHA::12}"
+          echo "backend_image=ghcr.io/${owner}/${repo}-backend:${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "nginx_image=ghcr.io/${owner}/${repo}-nginx:${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${short_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-vars.outputs.backend_image }}
+
+      - name: Build and push nginx image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: nginx/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-vars.outputs.nginx_image }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy production compose file to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          source: docker-compose.prod.yml
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          BACKEND_IMAGE: ${{ needs.build-and-push.outputs.backend_image }}
+          NGINX_IMAGE: ${{ needs.build-and-push.outputs.nginx_image }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          envs: BACKEND_IMAGE,NGINX_IMAGE,DEPLOY_PATH,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -eu
+
+            mkdir -p "$DEPLOY_PATH/backend"
+
+            if [ ! -f "$DEPLOY_PATH/backend/.env" ]; then
+              echo "Missing required file: $DEPLOY_PATH/backend/.env"
+              exit 1
+            fi
+
+            cd "$DEPLOY_PATH"
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d
+
+            for attempt in $(seq 1 20); do
+              if curl -fsS http://localhost/api/health >/dev/null; then
+                echo "Deployment verified successfully."
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "Health check failed after deployment."
+            exit 1

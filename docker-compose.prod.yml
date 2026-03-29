@@ -1,0 +1,16 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE}
+    env_file:
+      - backend/.env
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  nginx:
+    image: ${NGINX_IMAGE}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    ports:
+      - "80:80"
