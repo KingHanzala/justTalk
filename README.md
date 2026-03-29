@@ -1,89 +1,100 @@
-# Chat App
+# JustTalk
 
-Guide-aligned chat application with a React frontend, FastAPI backend, PostgreSQL, WebSocket messaging, Docker compose, and nginx reverse proxy support.
+<p align="center">
+  <strong>Verified real-time chat for direct messages and groups.</strong><br />
+  FastAPI + React + PostgreSQL + WebSockets, with Docker and GitHub Actions deployment support.
+</p>
 
-## Structure
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#environment">Environment</a> •
+  <a href="#production">Production</a> •
+  <a href="#cicd">CI/CD</a> •
+  <a href="#troubleshooting">Troubleshooting</a>
+</p>
 
-- `frontend/`: standalone Vite React app
-- `backend/`: FastAPI application, services, tests, and Alembic migrations
-- `nginx/`: reverse proxy configuration for production
+---
 
-## How to start the application
+## Features
 
-There are 3 supported ways to run it:
+JustTalk currently includes:
 
-1. Docker Compose for local development
-2. Local backend + local frontend
-3. Production with `docker-compose.prod.yml`
+- Email-verification-first auth flow
+- Case-insensitive username identity
+- Direct messages and group chats
+- Group admin roles
+- Add/remove members for existing groups
+- Soft-delete messages for everyone
+- Read-only removed-member history
+- Unread counts and unread chat highlighting
+- Real-time delivery over WebSockets
+- Typing indicators for DMs and groups
 
-## Option 1: Start with Docker Compose
+## Stack
 
-This is the easiest local setup because it starts PostgreSQL, the backend, and the frontend together.
+| Layer | Tech |
+| --- | --- |
+| Frontend | React, Vite, TypeScript, TanStack Query, Zustand |
+| Backend | FastAPI, SQLAlchemy, Alembic |
+| Database | PostgreSQL |
+| Realtime | WebSockets |
+| Dev Infra | Docker Compose |
+| Prod Infra | GHCR images, nginx, GitHub Actions |
+
+## Project Layout
+
+```text
+frontend/   Vite React client
+backend/    FastAPI app, Alembic migrations, tests
+nginx/      Production web server and frontend hosting image
+.github/    CI/CD workflows
+```
+
+## Quick Start
+
+### Option 1: Docker Compose
+
+This is the fastest way to run JustTalk locally.
 
 ```bash
 docker compose up --build
 ```
 
-Note:
-If Docker reports `bind: address already in use` for `5432`, that means PostgreSQL is already running on your machine. The compose setup does not need to expose the database port to your host, so this project is configured to avoid that conflict.
+Local URLs:
 
-App URLs:
+- App: `http://localhost:5173`
+- API: `http://localhost:8000`
+- API health: `http://localhost:8000/api/health`
 
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
-- Backend health: `http://localhost:8000/health`
-
-To stop:
+Stop the stack:
 
 ```bash
 docker compose down
 ```
 
-## Option 2: Start locally without Docker
+Reset local database volume if needed:
 
-Use this if you want to run frontend and backend directly on your machine.
+```bash
+docker compose down -v
+```
 
-### 1. Start the backend
+### Option 2: Run Backend and Frontend Separately
 
-Open terminal 1:
+#### Backend
 
 ```bash
 cd backend
 python3 -m venv venv
 source venv/bin/activate
+python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 cp .env.example .env
-```
-
-For local manual development, edit `backend/.env` and set `DATABASE_URL` to one of these:
-
-- Local SQLite:
-
-```env
-DATABASE_URL=sqlite:///./chat_app.db
-```
-
-- Local PostgreSQL:
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chat_app
-```
-
-Then run:
-
-```bash
 alembic upgrade head
 python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Backend will be available at:
-
-- API: `http://localhost:8000`
-- Health: `http://localhost:8000/health`
-
-### 2. Start the frontend
-
-Open terminal 2:
+#### Frontend
 
 ```bash
 cd frontend
@@ -92,96 +103,214 @@ cp .env.example .env
 npm run dev
 ```
 
-Frontend will be available at:
-
-- `http://localhost:5173`
-
-## Option 3: Run in production
-
-Production uses:
-
-- `backend/.env` for backend runtime settings
-- nginx to serve the built frontend and proxy `/api` and `/api/ws`
-- same-origin frontend calls by default, so frontend production env vars are usually not required
-
-Create the backend env file:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Edit `backend/.env` for production:
+Local frontend env:
 
 ```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/chat_app
-SECRET_KEY=replace-with-a-long-random-secret
-ALLOWED_ORIGINS=https://your-domain.com
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
+VITE_API_URL=http://localhost:8000
+VITE_WS_URL=ws://localhost:8000
 ```
 
-Then start the production stack:
+---
 
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-Production URLs:
-
-- App: `http://your-domain/`
-- API health: `http://your-domain/api/health`
-
-Important notes:
-
-- `docker-compose.prod.yml` expects an existing `backend/.env`
-- the current production compose file assumes you are using an external PostgreSQL database
-- port `443` is published, but nginx is not yet configured for TLS in this repo; use port `80` unless you add SSL config or terminate TLS before nginx
-
-## Environment files
+## Environment
 
 ### Backend
 
-Template: [backend/.env.example](/Users/kinghanzala/Downloads/ReplitExport-hanzalasabir/Prototype-Idea/backend/.env.example)
+Important variables:
 
-Important values:
-
-- `DATABASE_URL`
-- `SECRET_KEY`
-- `ALLOWED_ORIGINS`
-- `ACCESS_TOKEN_EXPIRE_MINUTES`
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL or SQLite connection string |
+| `SECRET_KEY` | JWT signing secret |
+| `ALLOWED_ORIGINS` | Allowed frontend origins |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT lifetime |
+| `RESEND_API_KEY` | Resend API key for verification emails |
+| `EMAIL_FROM` | Sender identity for verification emails |
+| `EMAIL_REPLY_TO` | Optional reply-to address |
+| `APP_BASE_URL` | Frontend base URL |
+| `VERIFICATION_CODE_EXPIRE_MINUTES` | Code expiry window |
+| `VERIFICATION_CODE_RESEND_SECONDS` | Resend cooldown |
 
 ### Frontend
 
-Template: [frontend/.env.example](/Users/kinghanzala/Downloads/ReplitExport-hanzalasabir/Prototype-Idea/frontend/.env.example)
+Use frontend env vars only for standalone frontend development. In production, nginx serves the built frontend and proxies API and WebSocket traffic on the same origin.
 
-Important values:
+---
 
-- `VITE_API_URL=http://localhost:8000`
-- `VITE_WS_URL=ws://localhost:8000`
+## Email Verification Setup
 
-Use the frontend env file only for standalone frontend development. In production, nginx serves the built frontend and proxies API and WebSocket traffic on the same domain.
+JustTalk now requires verified users before chat access.
 
-## Common commands
+### Resend Setup
 
-Frontend:
+For development, the backend can still run without a live mail sender, but in production you should configure Resend:
 
-```bash
-cd frontend
-npm run dev
-npm run build
-npm run typecheck
+1. Create a free account at Resend.
+2. Generate an API key.
+3. Verify a sending domain in Resend.
+4. Add the DNS records Resend provides.
+5. Set these values in `backend/.env`:
+
+```env
+RESEND_API_KEY=your-resend-api-key
+EMAIL_FROM=JustTalk <onboarding@your-domain.com>
+EMAIL_REPLY_TO=support@your-domain.com
+APP_BASE_URL=https://your-domain.com
 ```
 
-Backend:
+Notes:
+
+- Unverified users can sign up and resume verification later.
+- Login for unverified users routes them into verification, not full chat access.
+- WebSocket and authenticated chat access are blocked until verification completes.
+
+---
+
+## Production
+
+The repo includes an image-based production flow.
+
+### What production expects
+
+- A VM/server with Docker and Docker Compose plugin
+- A `backend/.env` file on the server
+- A PostgreSQL database
+- `docker-compose.prod.yml` present on the server
+- GHCR image pull access
+
+### Production server layout
+
+Recommended server path:
+
+```bash
+/home/<user>/chat-app
+```
+
+Expected file:
+
+```bash
+/home/<user>/chat-app/backend/.env
+```
+
+### Start production manually
+
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Production notes
+
+- [docker-compose.prod.yml] uses prebuilt images, not local source builds.
+- The current production compose expects an external PostgreSQL database.
+- nginx serves the frontend and proxies `/api` and `/api/ws`.
+- The current repo serves HTTP on port `80`. TLS/HTTPS should be added separately or terminated before nginx.
+
+---
+
+## CI/CD
+
+### Continuous Integration
+Runs on:
+
+- `push`
+- `pull_request`
+
+Checks:
+
+- Backend: `python -m pytest`
+- Frontend: `npm run typecheck`
+- Frontend: `npm run build`
+
+### Continuous Deployment
+
+Flow:
+
+1. Build backend and nginx images
+2. Push images to GHCR
+3. Copy `docker-compose.prod.yml` to the server
+4. SSH into the server
+5. Pull images
+6. Run `docker compose -f docker-compose.prod.yml up -d`
+7. Verify with `http://localhost/api/health`
+
+Required GitHub environment secrets:
+
+- `SSH_HOST`
+- `SSH_USER`
+- `SSH_PRIVATE_KEY`
+- `SSH_PORT`
+- `DEPLOY_PATH`
+- `GHCR_PAT`
+
+The deploy job currently uses the GitHub environment:
+
+- `ChatAppEnv`
+
+---
+
+## Common Commands
+
+### Backend
 
 ```bash
 cd backend
-python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 python3 -m pytest
+alembic upgrade head
+python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Testing
+### Frontend
 
 ```bash
-cd backend && python3 -m pytest
-cd frontend && npm run typecheck
+cd frontend
+npm install
+npm run dev
+npm run typecheck
+npm run build
 ```
+
+### Docker
+
+```bash
+docker compose up --build
+docker compose down
+docker compose down -v
+docker compose ps
+docker compose logs -f backend
+```
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>Backend exits during startup</strong></summary>
+
+This is usually one of these:
+
+- database not ready yet
+- migration error
+- bad `DATABASE_URL`
+- missing required env vars
+
+Check:
+
+```bash
+docker compose logs backend
+docker compose logs db
+```
+
+</details>
+
+---
+
+## Version Notes
+
+JustTalk v2 adds:
+
+- verified-user auth
+- case-insensitive username uniqueness
+- unread chat ordering and counts
+- typing indicators
+- improved removed-member visibility rules
+- updated JustTalk branding

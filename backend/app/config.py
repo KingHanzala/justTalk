@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = Field(default=60 * 24 * 7, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     allowed_origins: Annotated[list[str], NoDecode] = Field(default=["*"], alias="ALLOWED_ORIGINS")
+    resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
+    email_from: str | None = Field(default=None, alias="EMAIL_FROM")
+    email_reply_to: str | None = Field(default=None, alias="EMAIL_REPLY_TO")
+    app_base_url: str = Field(default="http://localhost:5173", alias="APP_BASE_URL")
+    verification_code_expire_minutes: int = Field(default=10, alias="VERIFICATION_CODE_EXPIRE_MINUTES")
+    verification_code_resend_seconds: int = Field(default=60, alias="VERIFICATION_CODE_RESEND_SECONDS")
 
     model_config = SettingsConfigDict(env_file=".env", populate_by_name=True, extra="ignore")
 

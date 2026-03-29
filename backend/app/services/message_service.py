@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import Chat, ChatMember, Message, User
 from app.models.chat import ROLE_ADMIN, STATUS_ACTIVE
 from app.models.schemas import MessageOut
+from app.services.chat_service import can_membership_see_message
 
 
 def list_messages_for_chat(chat_id: str, before: str | None, limit: int, db: Session, current_user: User) -> list[MessageOut]:
@@ -22,15 +23,14 @@ def list_messages_for_chat(chat_id: str, before: str | None, limit: int, db: Ses
         .options(joinedload(Message.user))
         .order_by(Message.created_at.asc())
     )
-    if before:
-        pivot = db.query(Message).filter(Message.id == before).first()
+    messages = query.all()
+    visible_messages = [message for message in messages if can_membership_see_message(membership, message.created_at)]
+    if before and visible_messages:
+        pivot = next((message for message in visible_messages if message.id == before), None)
         if pivot:
-            query = query.filter(Message.created_at < pivot.created_at)
-    if membership.status != STATUS_ACTIVE and membership.removed_at is not None:
-        query = query.filter(Message.created_at <= membership.removed_at)
-
-    messages = query.limit(limit).all()
-    return [MessageOut.from_orm(message, message.user.username) for message in messages]
+            visible_messages = [message for message in visible_messages if message.created_at < pivot.created_at]
+    window = visible_messages[-limit:]
+    return [MessageOut.from_orm(message, message.user.username) for message in window]
 
 
 def create_message(chat_id: str, content: str, db: Session, current_user: User) -> tuple[Message, MessageOut]:
@@ -45,6 +45,9 @@ def create_message(chat_id: str, content: str, db: Session, current_user: User) 
     db.add(message)
     db.commit()
     db.refresh(message)
+
+    membership.last_read_at = message.created_at
+    db.commit()
 
     return message, MessageOut.from_orm(message, current_user.username)
 

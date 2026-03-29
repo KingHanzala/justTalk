@@ -36,6 +36,8 @@ class ChatMember(Base):
     status: Mapped[str] = mapped_column(String, default=STATUS_ACTIVE)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    history_visible_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     chat: Mapped["Chat"] = relationship("Chat", back_populates="members")
     user: Mapped["User"] = relationship("User", back_populates="memberships")

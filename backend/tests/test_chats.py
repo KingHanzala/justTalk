@@ -3,7 +3,12 @@ def create_user(client, username: str):
         "/api/auth/register",
         json={"username": username, "email": f"{username}@example.com", "password": "password123"},
     )
-    payload = response.json()
+    assert response.status_code == 201
+    verify = client.post(
+        "/api/auth/verify",
+        json={"username": username, "code": client.fake_email_sender.codes_by_email[f"{username}@example.com"]},
+    )
+    payload = verify.json()
     return payload["user"], payload["token"]
 
 
@@ -138,3 +143,33 @@ def test_removed_member_can_be_readded(client):
         json={"content": "I'm back"},
     )
     assert send.status_code == 201
+
+
+def test_chat_list_has_unread_counts_and_recent_order(client):
+    _, alice_token = create_user(client, "alice")
+    bob, bob_token = create_user(client, "bob")
+    charlie, _ = create_user(client, "charlie")
+
+    first_chat = client.post(
+        "/api/chats",
+        headers={"Authorization": f"Bearer {alice_token}"},
+        json={"isGroup": False, "name": None, "memberUserIds": [bob["id"]]},
+    ).json()
+    second_chat = client.post(
+        "/api/chats",
+        headers={"Authorization": f"Bearer {alice_token}"},
+        json={"isGroup": False, "name": None, "memberUserIds": [charlie["id"]]},
+    ).json()
+
+    client.post(
+        f"/api/chats/{first_chat['id']}/messages",
+        headers={"Authorization": f"Bearer {bob_token}"},
+        json={"content": "Unread hello"},
+    )
+
+    listed = client.get("/api/chats", headers={"Authorization": f"Bearer {alice_token}"})
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == first_chat["id"]
+    assert listed.json()[0]["unreadCount"] == 1
+    assert listed.json()[0]["hasUnread"] is True
+    assert listed.json()[1]["id"] == second_chat["id"]

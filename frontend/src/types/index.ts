@@ -2,12 +2,14 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  isVerified: boolean;
   createdAt: string;
 }
 
-export interface AuthResponse {
-  token: string;
+export interface AuthFlowResponse {
+  token: string | null;
   user: User;
+  verificationRequired: boolean;
 }
 
 export interface Message {
@@ -35,6 +37,8 @@ export interface ChatSummary {
   isGroup: boolean;
   lastMessage: Message | null;
   memberCount: number;
+  unreadCount: number;
+  hasUnread: boolean;
   createdAt: string;
 }
 
@@ -45,6 +49,7 @@ export interface ChatDetail {
   members: ChatMember[];
   membershipStatus: "active" | "removed";
   canWrite: boolean;
+  unreadCount: number;
   createdAt: string;
 }
 
@@ -55,6 +60,15 @@ export interface LoginRequest {
 
 export interface RegisterRequest extends LoginRequest {
   email: string;
+}
+
+export interface VerifyCodeRequest {
+  username: string;
+  code: string;
+}
+
+export interface ResendVerificationRequest {
+  username: string;
 }
 
 export interface CreateChatRequest {
@@ -71,7 +85,19 @@ export interface SuccessResponse {
   success: boolean;
 }
 
+export interface TypingPayload {
+  chatId: string;
+  userId: string;
+  username: string;
+  isTyping: boolean;
+}
+
+export interface PendingVerification {
+  username: string;
+  email: string;
+}
+
 export interface WebSocketPayload {
-  type: "message" | "message_updated";
-  data: Message;
+  type: "message" | "message_updated" | "typing";
+  data: Message | TypingPayload;
 }

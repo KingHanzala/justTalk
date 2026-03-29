@@ -11,7 +11,16 @@ os.environ["SECRET_KEY"] = "test-secret"
 from app.database import get_db
 from app.main import app
 from app.models import Base
+from app.services import auth_service
 from app.websockets.manager import manager
+
+
+class FakeEmailSender:
+    def __init__(self):
+        self.codes_by_email: dict[str, str] = {}
+
+    def send_verification_code(self, *, email: str, username: str, code: str) -> None:
+        self.codes_by_email[email] = code
 
 
 @pytest.fixture()
@@ -33,12 +42,17 @@ def client(tmp_path):
 
     app.dependency_overrides[get_db] = override_get_db
     manager.active.clear()
+    fake_sender = FakeEmailSender()
+    original_sender = auth_service.email_sender
+    auth_service.email_sender = fake_sender
 
     try:
         with TestClient(app) as test_client:
+            test_client.fake_email_sender = fake_sender
             yield test_client
     finally:
         app.dependency_overrides.clear()
         manager.active.clear()
+        auth_service.email_sender = original_sender
         Base.metadata.drop_all(bind=engine)
         engine.dispose()

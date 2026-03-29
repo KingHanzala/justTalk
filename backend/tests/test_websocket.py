@@ -7,7 +7,12 @@ def create_user(client, username: str):
         "/api/auth/register",
         json={"username": username, "email": f"{username}@example.com", "password": "password123"},
     )
-    payload = response.json()
+    assert response.status_code == 201
+    verify = client.post(
+        "/api/auth/verify",
+        json={"username": username, "code": client.fake_email_sender.codes_by_email[f"{username}@example.com"]},
+    )
+    payload = verify.json()
     return payload["user"], payload["token"]
 
 
@@ -88,3 +93,22 @@ def test_removed_member_cannot_reconnect_websocket(client):
             pass
 
     assert exc_info.value.code == 4003
+
+
+def test_websocket_broadcasts_typing_events(client):
+    _, alice_token = create_user(client, "alice")
+    bob, bob_token = create_user(client, "bob")
+
+    chat = client.post(
+        "/api/chats",
+        headers={"Authorization": f"Bearer {alice_token}"},
+        json={"isGroup": False, "name": None, "memberUserIds": [bob["id"]]},
+    ).json()
+
+    with client.websocket_connect(f"/api/ws/{chat['id']}?token={alice_token}") as alice_ws:
+        with client.websocket_connect(f"/api/ws/{chat['id']}?token={bob_token}") as bob_ws:
+            bob_ws.send_json({"type": "typing", "data": {"isTyping": True}})
+            payload = alice_ws.receive_json()
+            assert payload["type"] == "typing"
+            assert payload["data"]["userId"] == bob["id"]
+            assert payload["data"]["isTyping"] is True

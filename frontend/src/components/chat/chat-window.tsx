@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { format } from "date-fns";
 import { Send, Hash, Users, Info, Trash2, Shield, X, ChevronLeft, UserPlus, Search } from "lucide-react";
 import { motion } from "framer-motion";
+
 import { useCurrentUser } from "@/hooks/useAuth";
-import { useAddMember, useChat, useDeleteMessage, useMessages, useRemoveMember, useSearchUsers, useSendMessage } from "@/hooks/useChat";
+import { useAddMember, useChat, useDeleteMessage, useMarkChatRead, useMessages, useRemoveMember, useSearchUsers, useSendMessage } from "@/hooks/useChat";
 import { useChatStore } from "@/store/use-chat-store";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { cn, getAvatarUrl } from "@/lib/utils";
@@ -12,38 +13,78 @@ import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export function ChatWindow() {
-  const { selectedChatId, setSelectedChatId } = useChatStore();
+  const { selectedChatId, setSelectedChatId, typingByChat } = useChatStore();
   const { data: currentUser } = useCurrentUser();
   const [content, setContent] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const lastMarkedReadRef = useRef<Record<string, string>>({});
   const isMobile = useIsMobile();
-  
-  // Connect to WS for real-time updates
-  useWebSocket(selectedChatId);
 
+  const { sendTyping } = useWebSocket(selectedChatId);
   const { data: chat, isLoading: isChatLoading } = useChat(selectedChatId);
-
   const { data: messages, isLoading: isMessagesLoading } = useMessages(selectedChatId);
 
   const sendMutation = useSendMessage();
   const deleteMessageMutation = useDeleteMessage();
+  const markReadMutation = useMarkChatRead();
   const removeMemberMutation = useRemoveMember();
   const addMemberMutation = useAddMember();
   const { data: searchableUsers, isLoading: isSearchingUsers } = useSearchUsers(memberSearch);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
+  useEffect(() => {
+    if (!selectedChatId || !chat || !messages || messages.length === 0 || chat.unreadCount === 0) {
+      return;
+    }
+    const lastVisibleMessageId = messages[messages.length - 1]?.id;
+    if (!lastVisibleMessageId) {
+      return;
+    }
+    if (lastMarkedReadRef.current[selectedChatId] === lastVisibleMessageId) {
+      return;
+    }
+    if (markReadMutation.isPending) {
+      return;
+    }
+
+    lastMarkedReadRef.current[selectedChatId] = lastVisibleMessageId;
+    markReadMutation.mutate(selectedChatId, {
+      onError: () => {
+        delete lastMarkedReadRef.current[selectedChatId];
+      },
+    });
+  }, [
+    chat?.id,
+    chat?.unreadCount,
+    markReadMutation.isPending,
+    markReadMutation,
+    messages?.length,
+    messages?.[messages.length - 1]?.id,
+    selectedChatId,
+  ]);
+
+  useEffect(() => () => {
+    if (typingTimeoutRef.current !== null) {
+      window.clearTimeout(typingTimeoutRef.current);
+    }
+  }, []);
+
   const handleSend = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!content.trim() || !selectedChatId) return;
-    
+    if (!content.trim() || !selectedChatId) {
+      return;
+    }
+
+    sendTyping(false);
     sendMutation.mutate(
       {
         chatId: selectedChatId,
@@ -52,6 +93,7 @@ export function ChatWindow() {
       {
         onSuccess: () => {
           setContent("");
+          setIsComposerFocused(false);
         },
       },
     );
@@ -60,7 +102,7 @@ export function ChatWindow() {
   if (!selectedChatId) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950/30 min-h-0">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center p-6 sm:p-8 glass-panel rounded-3xl max-w-md mx-4"
@@ -68,7 +110,7 @@ export function ChatWindow() {
           <div className="w-16 h-16 bg-primary/20 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-12">
             <Hash className="w-8 h-8 -rotate-12" />
           </div>
-          <h2 className="text-2xl font-display font-bold text-white mb-2">Welcome to Chat App</h2>
+          <h2 className="text-2xl font-display font-bold text-white mb-2">Welcome to JustTalk</h2>
           <p className="text-zinc-400">Select a conversation from the sidebar or start a new one to begin messaging.</p>
         </motion.div>
       </div>
@@ -83,16 +125,26 @@ export function ChatWindow() {
     );
   }
 
-  if (!chat) return null;
+  if (!chat) {
+    return null;
+  }
 
   const isAdmin = chat.members.some((member) => member.userId === currentUser?.id && member.role === "admin");
   const addableUsers = (searchableUsers ?? []).filter(
     (user) => !chat.members.some((member) => member.userId === user.id),
   );
+  const typingUsers = Object.values(typingByChat[chat.id] ?? {}).filter((typing) => typing.userId !== currentUser?.id);
+  const typingLabel =
+    typingUsers.length === 0
+      ? null
+      : chat.isGroup
+        ? typingUsers.length > 1
+          ? "Multiple People are Typing...."
+          : `${typingUsers[0].username} is typing...`
+        : `${typingUsers[0].username} is typing...`;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-zinc-950 relative overflow-hidden">
-      {/* Chat Header */}
       <div className="h-16 px-4 sm:px-6 border-b border-white/5 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md absolute top-0 left-0 right-0 z-10">
         <div className="flex items-center gap-3 min-w-0">
           {isMobile && (
@@ -105,10 +157,10 @@ export function ChatWindow() {
               <ChevronLeft className="w-5 h-5" />
             </button>
           )}
-          <img 
-            src={getAvatarUrl(chat.name || "Chat")} 
-            alt={chat.name || "Chat"} 
-            className="w-10 h-10 rounded-full bg-zinc-800 flex-shrink-0" 
+          <img
+            src={getAvatarUrl(chat.name || "Chat")}
+            alt={chat.name || "Chat"}
+            className="w-10 h-10 rounded-full bg-zinc-800 flex-shrink-0"
           />
           <div className="min-w-0">
             <h2 className="font-semibold text-white leading-tight truncate">
@@ -124,6 +176,9 @@ export function ChatWindow() {
                 <span>Direct Message</span>
               )}
             </div>
+            {typingLabel && (
+              <div className="mt-1 text-[11px] text-emerald-300 truncate">{typingLabel}</div>
+            )}
           </div>
         </div>
         <button
@@ -135,8 +190,7 @@ export function ChatWindow() {
         </button>
       </div>
 
-      {/* Messages Area */}
-      <div 
+      <div
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 pt-20 sm:pt-24 pb-4 sm:pb-6 scroll-smooth overscroll-contain"
       >
@@ -161,21 +215,21 @@ export function ChatWindow() {
                   key={message.id}
                   className={cn(
                     "flex max-w-[88%] sm:max-w-[75%]",
-                    isMine ? "ml-auto justify-end" : "mr-auto justify-start"
+                    isMine ? "ml-auto justify-end" : "mr-auto justify-start",
                   )}
                 >
                   {!isMine && (
                     <div className="w-8 flex-shrink-0 mr-2">
                       {showAvatar && (
-                        <img 
-                          src={getAvatarUrl(message.username)} 
-                          alt={message.username} 
-                          className="w-8 h-8 rounded-full bg-zinc-800 mt-1" 
+                        <img
+                          src={getAvatarUrl(message.username)}
+                          alt={message.username}
+                          className="w-8 h-8 rounded-full bg-zinc-800 mt-1"
                         />
                       )}
                     </div>
                   )}
-                  
+
                   <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
                     {!isMine && showAvatar && (
                       <span className="text-xs text-zinc-500 mb-1 ml-1">{message.username}</span>
@@ -184,9 +238,9 @@ export function ChatWindow() {
                       className={cn(
                         "px-3 sm:px-4 py-2.5 shadow-sm text-sm sm:text-[15px] leading-relaxed break-words",
                         message.isDeleted && "italic text-zinc-300",
-                        isMine 
-                          ? "bg-primary text-white rounded-2xl rounded-tr-sm" 
-                          : "bg-zinc-800 border border-white/5 text-zinc-100 rounded-2xl rounded-tl-sm"
+                        isMine
+                          ? "bg-primary text-white rounded-2xl rounded-tr-sm"
+                          : "bg-zinc-800 border border-white/5 text-zinc-100 rounded-2xl rounded-tl-sm",
                       )}
                     >
                       {message.content}
@@ -212,24 +266,44 @@ export function ChatWindow() {
         )}
       </div>
 
-      {/* Input Area */}
       <div className="p-3 sm:p-4 bg-zinc-950/80 backdrop-blur-md border-t border-white/5">
         {chat.canWrite ? (
-          <form 
-            onSubmit={handleSend}
-            className="flex items-end gap-2 max-w-4xl mx-auto"
-          >
+          <form onSubmit={handleSend} className="flex items-end gap-2 max-w-4xl mx-auto">
             <div className="flex-1 bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary/50 transition-all">
               <textarea
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setContent(nextValue);
+                  if (!isComposerFocused) {
+                    return;
+                  }
+                  sendTyping(Boolean(nextValue.trim()));
+                  if (typingTimeoutRef.current !== null) {
+                    window.clearTimeout(typingTimeoutRef.current);
+                  }
+                  typingTimeoutRef.current = window.setTimeout(() => sendTyping(false), 2000);
+                }}
+                onFocus={() => {
+                  setIsComposerFocused(true);
+                  if (content.trim()) {
+                    sendTyping(true);
+                  }
+                }}
+                onBlur={() => {
+                  setIsComposerFocused(false);
+                  sendTyping(false);
+                  if (typingTimeoutRef.current !== null) {
+                    window.clearTimeout(typingTimeoutRef.current);
+                  }
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                   }
                 }}
-                placeholder={`Message ${chat.name || '...'}`}
+                placeholder={`Message ${chat.name || "..."}`}
                 className="w-full max-h-32 min-h-[44px] bg-transparent text-white placeholder:text-zinc-500 px-4 py-3 resize-none focus:outline-none text-base"
                 rows={1}
               />
@@ -308,7 +382,10 @@ export function ChatWindow() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => addMemberMutation.mutate({ chatId: chat.id, userId: user.id }, { onSuccess: () => setMemberSearch("") })}
+                            onClick={() => addMemberMutation.mutate(
+                              { chatId: chat.id, userId: user.id },
+                              { onSuccess: () => setMemberSearch("") },
+                            )}
                             className="rounded-full p-2 text-zinc-400 transition-colors hover:bg-primary/10 hover:text-primary"
                             aria-label={`Add ${user.username}`}
                           >

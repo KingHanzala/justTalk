@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 
 backend/.env
+backend/.env.example
 backend/test.db
 
 frontend/.env

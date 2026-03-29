@@ -42,5 +42,19 @@ class ConnectionManager:
             if item in self.active[chat_id]:
                 self.active[chat_id].remove(item)
 
+    async def broadcast_except(self, chat_id: str, skip_user_id: str, message: dict):
+        payload = json.dumps(message, default=str)
+        dead = []
+        for uid, ws in list(self.active[chat_id]):
+            if uid == skip_user_id:
+                continue
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append((uid, ws))
+        for item in dead:
+            if item in self.active[chat_id]:
+                self.active[chat_id].remove(item)
+
 
 manager = ConnectionManager()
