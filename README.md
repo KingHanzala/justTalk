@@ -410,3 +410,13 @@ JustTalk v2 adds:
 - typing indicators
 - improved removed-member visibility rules
 - updated JustTalk branding
+
+# HLD
+
+## Complete Flow
+<img width="2516" height="926" alt="7BC9A416-84FF-48A3-AF8E-83B5F708F914" src="https://github.com/user-attachments/assets/9c5467ba-e277-45d9-a9e9-ea6f7509072f" />
+
+
+## Flow for Sending a message
+![AF3B3A4E-D675-46E9-AE4C-F5F072A40412_1_105_c](https://github.com/user-attachments/assets/bdca480c-9c49-4e6c-bdaa-c28e9888d2e4)
+
