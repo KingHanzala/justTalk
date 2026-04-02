@@ -11,7 +11,6 @@
   <a href="#environment">Environment</a> •
   <a href="#production">Production</a> •
   <a href="#cicd">CI/CD</a> •
-  <a href="#troubleshooting">Troubleshooting</a>
 </p>
 
 ---
